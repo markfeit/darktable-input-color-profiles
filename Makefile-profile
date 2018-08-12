@@ -1,0 +1,150 @@
+#
+# Makefile for Darktable ICC Color Profile Subdirectory
+#
+
+
+default: build
+
+#
+# Original TIF File
+#
+
+TIFS := $(filter-out $(wildcard *-diag.tif),$(wildcard *.tif))
+
+ifeq ($(shell expr $(words $(TIFS)) \> 1),1)
+$(error Directory contains more than one TIF file)
+endif
+TIF := $(TIFS)
+FILEBASE := $(basename $(TIF))
+
+
+#
+# Profile Name
+#
+
+ifeq ($(NAME),)
+  NAME := $(FILEBASE)
+  $(warning No name for profile provided; using $(FILEBASE))
+endif
+
+
+#
+# Camera Make and Model
+#
+
+ifeq ($(CAMERA_MAKE),)
+CAMERA_MAKE := $(shell exiftool -s -s -s -Make $(TIF))
+endif
+ifeq ($(CAMERA_MAKE),)
+  $(error Unable to determine camera make and none provided)
+endif
+
+ifeq ($(CAMERA_MODEL),)
+CAMERA_MODEL := $(shell exiftool -s -s -s -Model $(TIF))
+endif
+ifeq ($(CAMERA_MODEL),)
+  $(error Unable to determine camera model and none provided)
+endif
+
+
+
+# Where the ArgyllCMS reference data is kept
+ARGYLL_REFS=/usr/share/color/argyll/ref
+
+
+#VERBOSE=-v
+
+
+#
+# Chart and color specifications
+#
+
+CHT=$(PROFILE).cht
+CIE=$(PROFILE).cie
+$(CHT) $(CIE):
+	cp -f /usr/share/color/argyll/ref/$@ .
+TO_CLEAN += $(CHT) $(CIE)
+
+
+#
+# Target information (See http://argyllcms.com/doc/ti3_format.html)
+#
+
+OUTNAME := $(shell printf "$(NAME)" | tr '[:upper:][:space:]' '[:lower:]-')
+
+DIAG=$(OUTNAME)-diag.tif
+ICC=$(OUTNAME).icc
+TI3=$(FILEBASE).ti3
+
+build: $(ICC)
+
+$(TI3) $(DIAG): $(TIF) $(CHT) $(CIE)
+	scanin $(VERBOSE) -p -a -G 1.0 -dipn -O $(TI3) $(TIF) $(CHT) $(CIE)
+	mv diag.tif $(DIAG)
+TO_CLEAN += $(TI3) $(DIAG) diag.tif
+
+
+#
+# ICC Color profile
+#
+
+# First choice is explicitly-provided message
+
+# Second choice is what's in the EXIF
+ifeq ($(COPYRIGHT),)
+COPYRIGHT := $(shell exiftool -s -s -s -Copyright $(TIF))
+endif
+
+# Third choice is year and user GECOS
+ifeq ($(COPYRIGHT),)
+  GECOS := $(shell awk -F: -v "USER=$${USER}" \
+	'$$1 == USER { print $$5 }' /etc/passwd)
+
+  YEAR := $(shell exiftool -s -s -s -DateTimeOriginal $(TIF) \
+     | awk -F: '{ print $$1 }')
+  ifeq ($(YEAR),)
+    YEAR := $(shell date +%Y)
+  endif
+
+  COPYRIGHT=Copyright $(YEAR) $(GECOS)
+endif
+
+
+
+$(ICC): $(TI3)
+	colprof $(VERBOSE) \
+		-A "$(CAMERA_MAKE)" \
+		-M "$(CAMERA_MODEL)" \
+		-D "$(CAMERA_MAKE) $(CAMERA_MODEL) $(NAME)" \
+		-C "$(COPYRIGHT)" \
+		-O $@ \
+		-qh -am -nc -u $(basename $(TI3))
+TO_CLEAN += $(ICC)
+
+
+#
+# Darktable 
+#
+
+DTCOLORIN=$(HOME)/.config/darktable/color/in
+DTINSTALLED=$(DTCOLORIN)/$(ICC)
+
+$(DTCOLORIN):
+	mkdir -p $@
+
+
+$(DTINSTALLED): $(ICC) $(DTCOLORIN)
+	cp -f $< $@
+
+install: $(DTINSTALLED)
+
+uninstall:
+	rm -f $(DTINSTALLED)
+
+
+#
+# Everything Else
+#
+
+clean:
+	rm -rf $(TO_CLEAN) *~
