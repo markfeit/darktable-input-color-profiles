@@ -70,7 +70,8 @@ TO_CLEAN += $(CHT) $(CIE)
 # Target information (See http://argyllcms.com/doc/ti3_format.html)
 #
 
-OUTNAME := $(shell printf "$(NAME)" | tr '[:upper:][:space:]' '[:lower:]-')
+OUTNAME := $(shell printf "$(CAMERA_MAKE) $(CAMERA_MODEL) $(NAME)" \
+	| tr '[:upper:][:space:]' '[:lower:]-')
 
 DIAG=$(OUTNAME)-diag.tif
 ICC=$(OUTNAME).icc
