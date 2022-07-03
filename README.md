@@ -1,5 +1,7 @@
 # Darktable Input Color Profile Manager
 
+**NOTE:** darktable now has [built-in color calibration](https://docs.darktable.org/usermanual/3.8/en/module-reference/processing-modules/color-calibration/#extracting-settings-using-a-color-checker).  Use that instead.
+
 The Makefiles in this directory build ICC color profiles from TIF
 images of color calibration cards supported by ArgyllCMS and install
 them into your Darktable configuration.
